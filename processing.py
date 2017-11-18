@@ -30,14 +30,14 @@ def get_list_of_words(line):
 
     words = []
 
-    # Unify with underline sequence of words that start with Capital Letter
-    if pattern1.match(line):
-        aux = re.findall(pattern1, line)
+    # Unify with underline a sequence of words that start with Capital Letter
+    # if pattern1.match(line):
+    #     aux = re.findall(pattern1, line)
         
-        for a in aux:
-            line = line.replace(a, '')
-            b = re.sub(r'\s', '_', a)
-            words.append(b)
+    #     for a in aux:
+    #         line = line.replace(a, '')
+    #         b = re.sub(r'\s', '_', a)
+    #         words.append(b)
 
     # Get the rest of the words
     aux = re.findall(pattern2, line)
@@ -46,23 +46,64 @@ def get_list_of_words(line):
         words.append(a)
 
     return words
+
+def process_text(s_path, n):
+    g_classes = ('n', 'v', 'v-inf', 'v-pcp', 'v-ger', 'v-fin', 'adj', 'adv')
+    if n > 1:
+        g_classes.append('prp')
     
-def process_text(s_path):
     with open(s_path, encoding='latin-1') as a_file1:  
         for a_line in a_file1:
             clean_line = clean_text(a_line)
             words = get_list_of_words(a_line)
             
             for word in words:
-                aux = cogroo.lemmatize(word)
-                avaliated_word = cogroo.analyze(aux)
+                l_word = cogroo.lemmatize(word)
+                avaliated_word = cogroo.analyze(l_word)
 
                 if avaliated_word.sentences:
-                    grammar_class = re.findall(r'\#\w+\-*', str(avaliated_word.sentences[0].tokens))
+                    grammar_class = re.findall(r'#(\w+\-*\w*)', str(avaliated_word.sentences[0].tokens))
 
-                grammar_info[aux] = grammar_class[0]
-                lemmatized_words.append(aux)
+                if grammar_class[0] in g_classes:
+                    grammar_info[l_word] = grammar_class[0]
                 
+                lemmatized_words.append(l_word)
+                
+def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
+    n_texts = 0
+    pattern = re.compile("TEXTO")
+
+    with open(s_path, encoding=f_encoding) as a_file1:
+        for a_line in a_file1:
+            if pattern.match(a_line):
+                n_texts += 1
+    
+    aux = 0
+    flag_training = True
+    n_training_texts = (n_texts * 80) / 100
+    n_testing_texts = n_texts - n_training_texts
+
+    with open(s_path, encoding=f_encoding) as a_file1:
+        with open(d1_path, 'w', encoding=f_encoding) as a_file2:
+            with open(d2_path, 'w', encoding=f_encoding) as a_file3:
+                for a_line in a_file1:
+                    
+                    if flag_training:     
+                        if pattern.match(a_line):
+                            aux += 1
+                            if  aux > n_training_texts:
+                                first_testing_text = a_line
+                                flag_training = False
+                            else:
+                                a_file2.write(a_line + '\n')
+                        else:
+                            a_file2.write(a_line + '\n')
+                    else:
+                        if aux == (n_training_texts + 1):
+                            a_file3.write(first_testing_text + '\n')
+                            aux += 1
+
+                        a_file3.write(a_line + '\n')
 
 
 # PRÉ-PROCESSAMENTO: aplica lematização em todos arquivos no folder 'pre-processing'
@@ -86,5 +127,7 @@ def process_text(s_path):
 #         n_file += 1
 
 if __name__ == "__main__":
-    process_text('pre-processing/CORPUS DG POLICIA - final.txt')
-    print(grammar_info)
+    # generate_testing_and_training_files('original-files/CORPUS DG POLICIA - final.txt', 'training/train-policia.txt', 'testing/test-policia.txt', 'latin-1')
+    process_text('training/train-policia.txt', 1)
+    
+    # print(grammar_info)
