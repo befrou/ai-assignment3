@@ -126,8 +126,12 @@ def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
 #                     a_file2.write(lemma_line)
 #         n_file += 1
 
+def find_ngrams(input_list, n):
+      return zip(*[input_list[i:] for i in range(n)])
+
 if __name__ == "__main__":
     # generate_testing_and_training_files('original-files/CORPUS DG POLICIA - final.txt', 'training/train-policia.txt', 'testing/test-policia.txt', 'latin-1')
     process_text('training/train-policia.txt', 1)
-    
+    bagOfWords = find_ngrams(lemmatized_words,2)
+    print(list(bagOfWords))
     # print(grammar_info)
