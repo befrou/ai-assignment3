@@ -4,6 +4,7 @@ import re
 import n_gram
 import json
 import collections
+import unidecode
 
 # http://www.diveintopython3.net/files.html
 # http://python-notes.curiousefficiency.org/en/latest/python3/text_file_processing.html
@@ -52,54 +53,116 @@ def get_list_of_words(line):
 
     return words
 
-def process_text(s_path, d_path, n, category):
-    g_classes = ['n', 'v', 'v-inf', 'v-pcp', 'v-ger', 'v-fin', 'adj', 'adv']
-    if n > 1:
-        g_classes.append('prp')
+# def process_text(s_path, d_path, n, category):
+#     g_classes = ['n', 'v', 'v-inf', 'v-pcp', 'v-ger', 'v-fin', 'adj', 'adv']
+#     if n > 1:
+#         g_classes.append('prp')
 
-    n_grams[category] = []
-    section = ''
-    arr = []
-    maps_word_grammar = []
-    i = 0
-    json_str = '{ "' + category + '":['
+#     data[category] = {}
+#     previous_section = ''
+#     section = ''
+#     arr = []
+#     maps_word_grammar = []
+#     i = 0
+#     json_str = '{ "' + category + '":['
+    
+#     with open(s_path, encoding='latin-1') as a_file1:  
+#         for a_line in a_file1:
+
+#             clean_line = clean_text(a_line)
+#             words = get_list_of_words(clean_line)
+
+#             for word in words:
+#                 if word == 'TEXTO':
+#                     section = re.sub('\n', '', clean_line)
+#                     continue
+
+#                 if section == '':
+#                     continue
+
+#                 l_word = cogroo.lemmatize(word)
+#                 l_word = unidecode.unidecode(l_word)
+#                 avaliated_word = cogroo.analyze(l_word)
+            
+#                 if avaliated_word.sentences:
+#                     grammar_class = re.findall(r'#(\w+\-*\w*)', str(avaliated_word.sentences[0].tokens))
+
+#                 if grammar_class[0] in g_classes:
+#                     arr.append(l_word)
+#                     maps_word_grammar.append((l_word, grammar_class[0]))
+
+#                     if len(arr) == n:
+#                         ngram = n_gram.NGram(" ".join(arr), list(maps_word_grammar),  section)
+#                         arr.pop(0)
+#                         maps_word_grammar.pop(0)
+                        
+#                         j = json.dumps(ngram, indent=4, default=jsonDefault, ensure_ascii=False)
+#                         json_str += ', ' + j if i > 0 else j
+#                         i += 1
+#         json_str += ']}'
+
+#     with open(d_path, 'w', encoding='utf-8') as json_file:
+#         json_file.write(json_str)
+
+def process_text(s_path, category):
+    g_classes = ['n', 'n-adj', 'v', 'v-inf', 'v-pcp', 'v-ger', 'v-fin', 'adj', 'adv']
+
+    data = {}
+    data[category] = {}
+    section_words = {}
+    journal_body = False
+
+    directory = 'json/'
     
     with open(s_path, encoding='latin-1') as a_file1:  
         for a_line in a_file1:
-
             clean_line = clean_text(a_line)
-            words = get_list_of_words(clean_line)
 
-            for word in words:
-                if word == 'TEXTO':
-                    section = re.sub('\n', '', clean_line)
-                    continue
+            split_line = clean_line.split(" ")
+                
+            if split_line[0] == 'TEXTO':
+                if journal_body:
+                    if section_number in section_words:
+                        data[category][section_number] = section_words[section_number]
 
-                if section == '':
-                    continue
+                journal_body = True
+                section_number = re.sub('\n', '', split_line[1])
+                section_words[section_number] = []
+                continue
 
-                l_word = cogroo.lemmatize(word)
-                avaliated_word = cogroo.analyze(l_word)
-            
-                if avaliated_word.sentences:
-                    grammar_class = re.findall(r'#(\w+\-*\w*)', str(avaliated_word.sentences[0].tokens))
+            if journal_body:
+                words = get_list_of_words(clean_line)
 
-                if grammar_class[0] in g_classes:
-                    arr.append(l_word)
-                    maps_word_grammar.append((l_word, grammar_class[0]))
+                for word in words:
 
-                    if len(arr) == n:
-                        ngram = n_gram.NGram(" ".join(arr), list(maps_word_grammar),  section)
+                    l_word = cogroo.lemmatize(word)
+                    avaliated_word = cogroo.analyze(l_word)
+                
+                    if avaliated_word.sentences:
+                        grammar_class = re.findall(r'#(\w+\-*\w*)', str(avaliated_word.sentences[0].tokens))
+
+                    if grammar_class[0] in g_classes:
+                        section_words[section_number].append(unidecode.unidecode(l_word) + ":" + grammar_class[0])
+
+    info_path = directory + category.lower() + '.json'
+    with open(info_path, 'w', encoding='utf-8') as json_file:
+        json.dump(data, json_file, sort_keys=True, indent=4)
+
+    for i in range(1, 4):
+        d_path = directory + category.lower() + '-ngram' + str(i) + '.txt'
+        
+        with open(d_path, 'w', encoding='utf-8') as txt_file:
+            for k, section in data[category].items():
+                aux = 0
+                arr = []
+                for word_info in section:
+                    word = word_info.split(":")[0]
+                    arr.append(word)
+
+                    if len(arr) == i:
+                        ngram = " ".join(arr)
+                        txt_file.write(ngram + '\n')
                         arr.pop(0)
-                        maps_word_grammar.pop(0)
-                        
-                        j = json.dumps(ngram, indent=4, default=jsonDefault, ensure_ascii=False)
-                        json_str += ', ' + j if i > 0 else j
-                        i += 1
-        json_str += ']}'
-
-    with open(d_path, 'w', encoding='utf-8') as json_file:
-        json_file.write(json_str)
 
 
 def get_ngrams_frequencies(n, category, s_path, k):
@@ -151,8 +214,8 @@ def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
 
 if __name__ == "__main__":
     # generate_testing_and_training_files('original-files/CORPUS DG POLICIA - final.txt', 'training/train-policia.txt', 'testing/test-policia.txt', 'latin-1')
-    # process_text('training/train-policia.txt', 'json/policia.json', 2, 'policia')
-    print(get_ngrams_frequencies(2, 'policia', 'json/policia.json', 10))
+    process_text('training/train-policia.txt', 'Policia')
+    # print(get_ngrams_frequencies(2, 'policia', 'json/policia.json', 10))
     # for key, values in n_grams.items():
     #     for value in values:
     #         print(vars(value))
