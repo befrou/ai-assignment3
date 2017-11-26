@@ -5,6 +5,8 @@ import n_gram
 import json
 import collections
 import unidecode
+import sys
+
 
 # http://www.diveintopython3.net/files.html
 # http://python-notes.curiousefficiency.org/en/latest/python3/text_file_processing.html
@@ -31,20 +33,10 @@ def clean_text(text):
 
 # Tokenize and Normalize
 def get_list_of_words(line):
-    pattern1 = re.compile("([A-Z][a-zÀ-ÿ]+(?=\s[A-Z])(?:\s[A-Z][a-zÀ-ÿ]+)+)")
     pattern2 = re.compile("\w+")
 
     words = []
 
-    # Unify with underline a sequence of words that start with Capital Letter
-
-    # if pattern1.match(line):
-    #     aux = re.findall(pattern1, line)
-        
-    #     for a in aux:
-    #         line = line.replace(a, '')
-    #         b = re.sub(r'\s', '-', a)
-    #         words.append(b)
     # Get the rest of the words
     aux = re.findall(pattern2, line)
     
@@ -52,57 +44,6 @@ def get_list_of_words(line):
         words.append(a)
 
     return words
-
-# def process_text(s_path, d_path, n, category):
-#     g_classes = ['n', 'v', 'v-inf', 'v-pcp', 'v-ger', 'v-fin', 'adj', 'adv']
-#     if n > 1:
-#         g_classes.append('prp')
-
-#     data[category] = {}
-#     previous_section = ''
-#     section = ''
-#     arr = []
-#     maps_word_grammar = []
-#     i = 0
-#     json_str = '{ "' + category + '":['
-    
-#     with open(s_path, encoding='latin-1') as a_file1:  
-#         for a_line in a_file1:
-
-#             clean_line = clean_text(a_line)
-#             words = get_list_of_words(clean_line)
-
-#             for word in words:
-#                 if word == 'TEXTO':
-#                     section = re.sub('\n', '', clean_line)
-#                     continue
-
-#                 if section == '':
-#                     continue
-
-#                 l_word = cogroo.lemmatize(word)
-#                 l_word = unidecode.unidecode(l_word)
-#                 avaliated_word = cogroo.analyze(l_word)
-            
-#                 if avaliated_word.sentences:
-#                     grammar_class = re.findall(r'#(\w+\-*\w*)', str(avaliated_word.sentences[0].tokens))
-
-#                 if grammar_class[0] in g_classes:
-#                     arr.append(l_word)
-#                     maps_word_grammar.append((l_word, grammar_class[0]))
-
-#                     if len(arr) == n:
-#                         ngram = n_gram.NGram(" ".join(arr), list(maps_word_grammar),  section)
-#                         arr.pop(0)
-#                         maps_word_grammar.pop(0)
-                        
-#                         j = json.dumps(ngram, indent=4, default=jsonDefault, ensure_ascii=False)
-#                         json_str += ', ' + j if i > 0 else j
-#                         i += 1
-#         json_str += ']}'
-
-#     with open(d_path, 'w', encoding='utf-8') as json_file:
-#         json_file.write(json_str)
 
 def process_text(s_path, category):
     g_classes = ['n', 'n-adj', 'v', 'v-inf', 'v-pcp', 'v-ger', 'v-fin', 'adj', 'adv']
@@ -114,7 +55,7 @@ def process_text(s_path, category):
 
     directory = 'json/'
     
-    with open(s_path, encoding='latin-1') as a_file1:  
+    with open(s_path, encoding='utf-16le') as a_file1:  
         for a_line in a_file1:
             clean_line = clean_text(a_line)
 
@@ -165,16 +106,22 @@ def process_text(s_path, category):
                         arr.pop(0)
 
 
-def get_ngrams_frequencies(n, category, s_path, k):
-    data = json.load(open(s_path))
-    ng = []
-    for i in data[category]:
-        ng.append(i['ngram'])
+def get_ngrams_frequencies(s_path, source_path, origin, f_encoding):
+    
+    counts = {}
 
-    counter = collections.Counter(ng)
+    for file in os.listdir(s_path):
+        file = os.path.join(s_path, file)
+        with open(file, encoding=f_encoding) as a_file:
+            for word in a_file:
+                if word not in counts:
+                    counts[word] = 0
+                counts[word] += 1
 
-    return counter.most_common()[:k]
-            
+    word_counts = collections.Counter(counts)
+    with open(source_path, 'w', encoding=f_encoding) as a_file2:
+        for word, count in sorted(word_counts.items()):
+            a_file2.write(origin + ";" + str(count) + ";" + word)
 
 def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
     n_texts = 0
@@ -213,9 +160,6 @@ def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
                         a_file3.write(a_line + '\n')
 
 if __name__ == "__main__":
-    # generate_testing_and_training_files('original-files/CORPUS DG POLICIA - final.txt', 'training/train-policia.txt', 'testing/test-policia.txt', 'latin-1')
-    process_text('training/train-policia.txt', 'Policia')
-    # print(get_ngrams_frequencies(2, 'policia', 'json/policia.json', 10))
-    # for key, values in n_grams.items():
-    #     for value in values:
-    #         print(vars(value))
+    #generate_testing_and_training_files('original-files/CORPUS DG O QUE HA DE NOVO - final.txt', 'training/train-novidades.txt', 'testing/test-novidades.txt', 'utf-16le')
+    #process_text('training/train-novidades.txt', 'Novidades')
+    print(get_ngrams_frequencies('json/trabalhador', 'json/trabalhador/trabalhador-frequencia.txt', 'trabalhador', 'latin-1'))
