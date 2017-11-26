@@ -123,6 +123,36 @@ def get_ngrams_frequencies(s_path, source_path, origin, f_encoding):
         for word, count in sorted(word_counts.items()):
             a_file2.write(origin + ";" + str(count) + ";" + word)
 
+def generate_arff_file(path, f_encoding):
+    allRows = []
+    with open(path, encoding=f_encoding) as a_file:
+        for line in a_file:
+            result = line.split(",")
+            allRows.append(result)
+    
+    del allRows[0]
+    allRows = allRows[:100]
+    
+    with open('result.arff', 'w', encoding=f_encoding) as a_file2:
+        a_file2.write("@RELATION PALAVRAS\n\n")
+
+        for row in allRows:
+            a_file2.write("@ATTRIBUTE " + row[2].rstrip() + " INTEGER\n")
+        
+        a_file2.write("@ATTRIBUTE class" + "{policia, esportes, novidades, problema, trabalhador}" + "\n\n")
+        a_file2.write("@DATA\n")
+
+        for row in allRows:
+            for word in allRows:
+                if word[2] == row[2]:
+                     a_file2.write("1" + ",")
+                else:
+                     a_file2.write("0" + ",")
+            
+            a_file2.write(row[0] + "\n")
+            
+
+
 def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
     n_texts = 0
     pattern = re.compile("TEXTO")
@@ -162,4 +192,5 @@ def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
 if __name__ == "__main__":
     #generate_testing_and_training_files('original-files/CORPUS DG O QUE HA DE NOVO - final.txt', 'training/train-novidades.txt', 'testing/test-novidades.txt', 'utf-16le')
     #process_text('training/train-novidades.txt', 'Novidades')
-    print(get_ngrams_frequencies('json/trabalhador', 'json/trabalhador/trabalhador-frequencia.txt', 'trabalhador', 'latin-1'))
+    #get_ngrams_frequencies('json/trabalhador', 'json/trabalhador/trabalhador-frequencia.txt', 'trabalhador', 'latin-1'))
+    generate_arff_file('ngrams_training_filtered.csv', 'latin-1')
