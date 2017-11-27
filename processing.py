@@ -6,13 +6,8 @@ import json
 import collections
 import unidecode
 import sys
+import pprint
 
-
-# http://www.diveintopython3.net/files.html
-# http://python-notes.curiousefficiency.org/en/latest/python3/text_file_processing.html
-# https://blogs.msdn.microsoft.com/oldnewthing/20140930-00/?p=43953
-# https://pypi.python.org/pypi/chardet
-# https://stackoverflow.com/questions/9525993/get-consecutive-capitalized-words-using-regex
 
 cogroo = Cogroo.Instance()
 n_grams = {}
@@ -55,7 +50,7 @@ def process_text(s_path, category):
 
     directory = 'json/'
     
-    with open(s_path, encoding='utf-16le') as a_file1:  
+    with open(s_path, encoding='latin-1') as a_file1:  
         for a_line in a_file1:
             clean_line = clean_text(a_line)
 
@@ -87,69 +82,107 @@ def process_text(s_path, category):
 
     info_path = directory + category.lower() + '.json'
     with open(info_path, 'w', encoding='utf-8') as json_file:
-        json.dump(data, json_file, sort_keys=True, indent=4)
+        json.dump(data, json_file, indent=4)
 
+    directory = 'ngrams/'
     for i in range(1, 4):
-        d_path = directory + category.lower() + '-ngram' + str(i) + '.txt'
+        d_path = directory + category.lower() + '-ngram' + str(i) + '.json'
+        ngram_json = {}
+        ngram_json[category] = {}
+
+        for key, section in data[category].items():
+            aux = 0
+            arr = []
+            ngram_json[category][key] = []
+
+            for word_info in section:
+
+                word = word_info.split(":")[0]
+                arr.append(word)
+
+                if len(arr) == i:
+                    ngram = " ".join(arr)
+                    ngram_json[category][key].append(ngram)
+                    arr.pop(0)
+
+        with open(d_path, 'w', encoding='utf-8') as json_file:
+            json.dump(ngram_json, json_file, indent=4)
+
+
+
+def get_bag_of_words(ngrams_path, n):
+    words = {}
+    category = ''
+    bow = {}
+    categories = []
+
+    for filename in os.listdir(ngrams_path):
+        aux = filename.split(".")
+        n_ngram = aux[-2][-1]
+
+        if n_ngram == str(n):
+            path = os.path.join(ngrams_path, filename)
+            data = json.load(open(path))
+
+            category = list(data.keys())[0]
+            categories.append(category)
+            words = {}
+
+            for key, section in data[category].items():
+                for word in section:
+                    if word in words:
+                        words[word] += 1
+                    else:
+                        words[word] = 1
+            
+    bow = collections.Counter(words).most_common(10)
+    # pp = pprint.PrettyPrinter(indent=4)
+    # pp.pprint(bow)
+
+    return bow, categories
         
-        with open(d_path, 'w', encoding='utf-8') as txt_file:
-            for k, section in data[category].items():
-                aux = 0
-                arr = []
-                for word_info in section:
-                    word = word_info.split(":")[0]
-                    arr.append(word)
+           
+def generate_arff_file(ngrams_path, n, f_encoding):
 
-                    if len(arr) == i:
-                        ngram = " ".join(arr)
-                        txt_file.write(ngram + '\n')
-                        arr.pop(0)
+    allRows, categories = get_bag_of_words(ngrams_path, n)
 
-
-def get_ngrams_frequencies(s_path, source_path, origin, f_encoding):
-    
-    counts = {}
-
-    for file in os.listdir(s_path):
-        file = os.path.join(s_path, file)
-        with open(file, encoding=f_encoding) as a_file:
-            for word in a_file:
-                if word not in counts:
-                    counts[word] = 0
-                counts[word] += 1
-
-    word_counts = collections.Counter(counts)
-    with open(source_path, 'w', encoding=f_encoding) as a_file2:
-        for word, count in sorted(word_counts.items()):
-            a_file2.write(origin + ";" + str(count) + ";" + word)
-
-def generate_arff_file(path, f_encoding):
-    allRows = []
-    with open(path, encoding=f_encoding) as a_file:
-        for line in a_file:
-            result = line.split(",")
-            allRows.append(result)
-    
-    del allRows[0]
-    allRows = allRows[:100]
-    
     with open('result.arff', 'w', encoding=f_encoding) as a_file2:
         a_file2.write("@RELATION PALAVRAS\n\n")
 
         for row in allRows:
-            a_file2.write("@ATTRIBUTE " + row[2].rstrip() + " INTEGER\n")
+            a_file2.write("@ATTRIBUTE " + row[0] + " INTEGER\n")
         
-        a_file2.write("@ATTRIBUTE class" + "{policia, esportes, novidades, problema, trabalhador}" + "\n\n")
+        str_categories = ''
+        i = 0
+        for c in categories:
+            str_categories += c if i == 0 else ', ' + c
+            i += 1
+
+        a_file2.write("@ATTRIBUTE class" + "{" + str_categories + "}" + "\n\n")
         a_file2.write("@DATA\n")
 
-        for row in allRows:
-            for word in allRows:
-                if word[2] == row[2]:
-                     a_file2.write("1" + ",")
-                else:
-                     a_file2.write("0" + ",")
-            
-            a_file2.write(row[0] + "\n")
+        for filename in os.listdir(ngrams_path):
+            aux = filename.split(".")
+            n_ngram = aux[-2][-1]
+
+            if n_ngram == str(n):
+                path = os.path.join(ngrams_path, filename)
+                data = json.load(open(path))
+
+                category = list(data.keys())[0]
+
+                for key, section in data[category].items():
+                    for att in allRows:
+                        flag = 0
+                        for ngram in section:
+                            if att[0] == ngram:
+                                flag = 1
+                                break
+                        if flag == 1:
+                            a_file2.write("1" + ",")
+                        else:
+                            a_file2.write("0" + ",")           
+                    a_file2.write(category + "\n")
             
 
 
@@ -190,7 +223,8 @@ def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
                         a_file3.write(a_line + '\n')
 
 if __name__ == "__main__":
-    #generate_testing_and_training_files('original-files/CORPUS DG O QUE HA DE NOVO - final.txt', 'training/train-novidades.txt', 'testing/test-novidades.txt', 'utf-16le')
-    #process_text('training/train-novidades.txt', 'Novidades')
-    #get_ngrams_frequencies('json/trabalhador', 'json/trabalhador/trabalhador-frequencia.txt', 'trabalhador', 'latin-1'))
-    generate_arff_file('ngrams_training_filtered.csv', 'latin-1')
+    # generate_testing_and_training_files('original-files/CORPUS DG ESPORTES - final.txt', 'training/train-esporte.txt', 'testing/test-esporte.txt', 'latin-1')
+    # process_text('training/train-esporte.txt', 'Esporte')
+    # get_ngrams_frequencies('json/trabalhador', 'json/trabalhador/trabalhador-frequencia.txt', 'trabalhador', 'latin-1'))
+    # get_bag_of_words('ngrams/', 1)
+    generate_arff_file('ngrams/', 1, 'latin-1')
