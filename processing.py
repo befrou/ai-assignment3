@@ -1,7 +1,6 @@
 from cogroo_interface import Cogroo
 import os
 import re
-import n_gram
 import json
 import collections
 import unidecode
@@ -11,9 +10,6 @@ import pprint
 
 cogroo = Cogroo.Instance()
 n_grams = {}
-
-def jsonDefault(object):
-    return object.__dict__
 
 def clean_text(text):
     pattern1 = re.compile(r'[\x93\x94\x96\x97]')
@@ -40,7 +36,8 @@ def get_list_of_words(line):
 
     return words
 
-def process_text(s_path, category):
+# file_type: 'testing' or 'training'
+def process_text(s_path, file_type, category):
     g_classes = ['n', 'n-adj', 'v', 'v-inf', 'v-pcp', 'v-ger', 'v-fin', 'adj', 'adv']
 
     data = {}
@@ -84,7 +81,11 @@ def process_text(s_path, category):
     with open(info_path, 'w', encoding='utf-8') as json_file:
         json.dump(data, json_file, indent=4)
 
-    directory = 'ngrams/'
+    directory = 'ngrams-' + file_type  + '/'
+
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
     for i in range(1, 4):
         d_path = directory + category.lower() + '-ngram' + str(i) + '.json'
         ngram_json = {}
@@ -108,8 +109,7 @@ def process_text(s_path, category):
         with open(d_path, 'w', encoding='utf-8') as json_file:
             json.dump(ngram_json, json_file, indent=4)
 
-
-
+# n: ngram 1, 2 or 3
 def get_bag_of_words(ngrams_path, n):
     words = {}
     category = ''
@@ -141,12 +141,18 @@ def get_bag_of_words(ngrams_path, n):
 
     return bow, categories
         
-           
-def generate_arff_file(ngrams_path, n, f_encoding):
+# n: ngram 1, 2 or 3
+# file_type: 'testing' or 'training'          
+def generate_arff_file(n, file_type, f_encoding):
+    ngrams_path = 'ngrams-' + file_type + '/'
 
     allRows, categories = get_bag_of_words(ngrams_path, n)
 
-    with open('result.arff', 'w', encoding=f_encoding) as a_file2:
+    directory = 'weka-' + file_type + '/'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    with open(directory + 'result.arff', 'w', encoding=f_encoding) as a_file2:
         a_file2.write("@RELATION PALAVRAS\n\n")
 
         for row in allRows:
@@ -224,7 +230,5 @@ def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
 
 if __name__ == "__main__":
     # generate_testing_and_training_files('original-files/CORPUS DG ESPORTES - final.txt', 'training/train-esporte.txt', 'testing/test-esporte.txt', 'latin-1')
-    # process_text('training/train-esporte.txt', 'Esporte')
-    # get_ngrams_frequencies('json/trabalhador', 'json/trabalhador/trabalhador-frequencia.txt', 'trabalhador', 'latin-1'))
-    # get_bag_of_words('ngrams/', 1)
-    generate_arff_file('ngrams/', 1, 'latin-1')
+    process_text('testing/test-policia.txt', 'testing', 'Policia')
+    generate_arff_file(1, 'testing', 'latin-1')
