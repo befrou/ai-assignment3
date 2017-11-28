@@ -22,7 +22,6 @@ def clean_text(text):
 
     return clean_text
 
-# Tokenize and Normalize
 def get_list_of_words(line):
     pattern2 = re.compile("\w+")
 
@@ -36,6 +35,8 @@ def get_list_of_words(line):
 
     return words
 
+# Generates all ngram files from the specified category for both training and testing texts
+# Also generates a json file with information of grammar class for each word
 def process_text(training_path, testing_path, category, f_encoding):
     g_classes = ['n', 'n-adj', 'v', 'v-inf', 'v-pcp', 'v-ger', 'v-fin', 'adj', 'adv']
 
@@ -234,6 +235,12 @@ def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
     n_texts = 0
     pattern = re.compile("TEXTO")
 
+    if not os.path.exists('training/'):
+        os.makedirs('training/')
+    
+    if not os.path.exists('testing/'):
+        os.makedirs('testing/')
+
     with open(s_path, encoding=f_encoding) as a_file1:
         for a_line in a_file1:
             if pattern.match(a_line):
@@ -269,4 +276,4 @@ def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
 if __name__ == "__main__":
     # generate_testing_and_training_files('original-files/CORPUS DG ESPACO DO TRABALHADOR - final.txt', 'training/train-trabalhador.txt', 'testing/test-trabalhador.txt', 'latin-1')
     # process_text('training/train-trabalhador.txt','testing/test-trabalhador.txt', 'Trabalhador', 'latin-1')
-    generate_arff_file(1, 'policia_esporte_problema_trabalhador-ngram1-training', 'policia_esporte_problema_trabalhador-ngram1-testing', 'latin-1', 50)
+    generate_arff_file(3, 'policia_esporte_problema_trabalhador-ngram3-training', 'policia_esporte_problema_trabalhador-ngram3-testing', 'latin-1', 50)
