@@ -2,4 +2,11 @@ testing/
 training/
 original-files/
 json/
+__pycache__/
+text-info-json/
+weka-testing/
+weka-training/
+processed-files/
+ngrams-testing/
+ngrams-training/
 cogroo4py.jar

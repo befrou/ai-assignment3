@@ -36,81 +36,91 @@ def get_list_of_words(line):
 
     return words
 
-# file_type: 'testing' or 'training'
-def process_text(s_path, file_type, category):
+def process_text(training_path, testing_path, category, f_encoding):
     g_classes = ['n', 'n-adj', 'v', 'v-inf', 'v-pcp', 'v-ger', 'v-fin', 'adj', 'adv']
 
-    data = {}
-    data[category] = {}
-    section_words = {}
-    journal_body = False
+    directory_category_info = 'text-info-json/'
 
-    directory = 'json/'
+    if not os.path.exists(directory_category_info):
+        os.makedirs(directory_category_info)
     
-    with open(s_path, encoding='latin-1') as a_file1:  
-        for a_line in a_file1:
-            clean_line = clean_text(a_line)
+    for j in range(1, 3):
+        data = {}
+        data[category] = {}
+        section_words = {}
+        journal_body = False
 
-            split_line = clean_line.split(" ")
-                
-            if split_line[0] == 'TEXTO':
+        if j == 1:
+            directory_ngrams = 'ngrams-training/'
+            path = training_path
+            action = 'training'
+        else:
+            directory_ngrams = 'ngrams-testing/'
+            path = testing_path
+            action = 'testing'
+
+        with open(path, encoding=f_encoding) as a_file1:  
+            for a_line in a_file1:
+                clean_line = clean_text(a_line)
+                split_line = clean_line.split(" ")
+                    
+                if split_line[0] == 'TEXTO':
+                    if journal_body:
+                        if section_number in section_words:
+                            data[category][section_number] = section_words[section_number]
+
+                    journal_body = True
+                    section_number = re.sub('\n', '', split_line[1])
+                    section_words[section_number] = []
+                    continue
+
                 if journal_body:
-                    if section_number in section_words:
-                        data[category][section_number] = section_words[section_number]
+                    words = get_list_of_words(clean_line)
 
-                journal_body = True
-                section_number = re.sub('\n', '', split_line[1])
-                section_words[section_number] = []
-                continue
+                    for word in words:
 
-            if journal_body:
-                words = get_list_of_words(clean_line)
+                        l_word = cogroo.lemmatize(word)
+                        avaliated_word = cogroo.analyze(l_word)
+                    
+                        if avaliated_word.sentences:
+                            grammar_class = re.findall(r'#(\w+\-*\w*)', str(avaliated_word.sentences[0].tokens))
 
-                for word in words:
+                        if grammar_class[0] in g_classes:
+                            section_words[section_number].append(unidecode.unidecode(l_word) + ":" + grammar_class[0])
 
-                    l_word = cogroo.lemmatize(word)
-                    avaliated_word = cogroo.analyze(l_word)
-                
-                    if avaliated_word.sentences:
-                        grammar_class = re.findall(r'#(\w+\-*\w*)', str(avaliated_word.sentences[0].tokens))
+        info_path = directory_category_info + category.lower() + '-' + action + '.json'
+        with open(info_path, 'w', encoding='utf-8') as json_file:
+            json.dump(data, json_file, indent=4)
 
-                    if grammar_class[0] in g_classes:
-                        section_words[section_number].append(unidecode.unidecode(l_word) + ":" + grammar_class[0])
+        if not os.path.exists(directory_ngrams):
+            os.makedirs(directory_ngrams)
 
-    info_path = directory + category.lower() + '.json'
-    with open(info_path, 'w', encoding='utf-8') as json_file:
-        json.dump(data, json_file, indent=4)
+        # Create ngram json files
+        for i in range(1, 4):
+            d_path = directory_ngrams + category.lower() + '-ngram' + str(i) + '.json'
+            ngram_json = {}
+            ngram_json[category] = {}
 
-    directory = 'ngrams-' + file_type  + '/'
+            for key, section in data[category].items():
+                aux = 0
+                arr = []
+                ngram_json[category][key] = []
 
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+                for word_info in section:
 
-    for i in range(1, 4):
-        d_path = directory + category.lower() + '-ngram' + str(i) + '.json'
-        ngram_json = {}
-        ngram_json[category] = {}
+                    word = word_info.split(":")[0]
+                    arr.append(word)
 
-        for key, section in data[category].items():
-            aux = 0
-            arr = []
-            ngram_json[category][key] = []
+                    if len(arr) == i:
+                        ngram = " ".join(arr)
+                        ngram_json[category][key].append(ngram)
+                        arr.pop(0)
 
-            for word_info in section:
-
-                word = word_info.split(":")[0]
-                arr.append(word)
-
-                if len(arr) == i:
-                    ngram = " ".join(arr)
-                    ngram_json[category][key].append(ngram)
-                    arr.pop(0)
-
-        with open(d_path, 'w', encoding='utf-8') as json_file:
-            json.dump(ngram_json, json_file, indent=4)
+            with open(d_path, 'w', encoding='utf-8') as json_file:
+                json.dump(ngram_json, json_file, indent=4)
 
 # n: ngram 1, 2 or 3
-def get_bag_of_words(ngrams_path, n):
+def get_bag_of_words(ngrams_path, n, bow_size):
     words = {}
     category = ''
     bow = {}
@@ -135,62 +145,90 @@ def get_bag_of_words(ngrams_path, n):
                     else:
                         words[word] = 1
             
-    bow = collections.Counter(words).most_common(10)
+    bow = collections.Counter(words).most_common(bow_size)
     # pp = pprint.PrettyPrinter(indent=4)
     # pp.pprint(bow)
 
     return bow, categories
         
-# n: ngram 1, 2 or 3
-# file_type: 'testing' or 'training'          
-def generate_arff_file(n, file_type, f_encoding):
-    ngrams_path = 'ngrams-' + file_type + '/'
+# Attributes:
+#   n: ngram
+#   filename_training: weka training file name
+#   filename_testing: weka testing file name
+#   f_encoding: files encoding
+#   bow_size: bag of words size
+# Generates weka files for testing and training
+# The weka file is generated based on the ngrams files located in "ngrams-training" and "ngrams_testing" directories
+# The "n" attribute specifies wich ngrams files should be read. It reads files from all categories with ngram equals to "n"     
+def generate_arff_file(n, filename_training, filename_testing, f_encoding, bow_size):
 
-    allRows, categories = get_bag_of_words(ngrams_path, n)
+    directory_ngram_training = 'ngrams-training/'
+    directory_ngram_testing = 'ngrams-testing/'
 
-    directory = 'weka-' + file_type + '/'
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+    directory_weka_training = 'weka-training/'
+    directory_weka_testing = 'weka-testing/'
 
-    with open(directory + 'result.arff', 'w', encoding=f_encoding) as a_file2:
-        a_file2.write("@RELATION PALAVRAS\n\n")
+    # Get BoW
+    bow, categories = get_bag_of_words(directory_ngram_training, n, bow_size)
 
-        for row in allRows:
-            a_file2.write("@ATTRIBUTE " + row[0] + " INTEGER\n")
-        
-        str_categories = ''
-        i = 0
-        for c in categories:
-            str_categories += c if i == 0 else ', ' + c
-            i += 1
+    # Create weka training and testing directories if they don't exist
+    if not os.path.exists(directory_weka_training):
+        os.makedirs(directory_weka_training)
+    
+    if not os.path.exists(directory_weka_testing):
+        os.makedirs(directory_weka_testing)
 
-        a_file2.write("@ATTRIBUTE class" + "{" + str_categories + "}" + "\n\n")
-        a_file2.write("@DATA\n")
+    # First iteration generates weka training file. Second iteration generates weka testing file
+    for index in range(1, 3):
+        if index == 1:
+            directory = directory_weka_training
+            directory_ngrams = directory_ngram_training
+            f_name = filename_training
+        else:
+            directory = directory_weka_testing
+            directory_ngrams = directory_ngram_testing
+            f_name = filename_testing
 
-        for filename in os.listdir(ngrams_path):
-            aux = filename.split(".")
-            n_ngram = aux[-2][-1]
+        with open(directory + f_name + '.arff', 'w', encoding=f_encoding) as a_file2:
+            a_file2.write("@RELATION PALAVRAS\n\n")
 
-            if n_ngram == str(n):
-                path = os.path.join(ngrams_path, filename)
-                data = json.load(open(path))
-
-                category = list(data.keys())[0]
-
-                for key, section in data[category].items():
-                    for att in allRows:
-                        flag = 0
-                        for ngram in section:
-                            if att[0] == ngram:
-                                flag = 1
-                                break
-                        if flag == 1:
-                            a_file2.write("1" + ",")
-                        else:
-                            a_file2.write("0" + ",")           
-                    a_file2.write(category + "\n")
+            for row in bow:
+                if n > 1:
+                    a_file2.write("@ATTRIBUTE " + row[0].replace(" ", "_") + " INTEGER\n")
+                else:
+                    a_file2.write("@ATTRIBUTE " + row[0] + " INTEGER\n")
             
+            str_categories = ''
+            i = 0
+            for c in categories:
+                str_categories += c if i == 0 else ', ' + c
+                i += 1
 
+            a_file2.write("@ATTRIBUTE class" + "{" + str_categories + "}" + "\n\n")
+            a_file2.write("@DATA\n")
+
+            for filename in os.listdir(directory_ngrams):
+                aux = filename.split(".")
+                n_ngram = aux[-2][-1]
+
+                if n_ngram == str(n):
+                    path = os.path.join(directory_ngrams, filename)
+                    data = json.load(open(path))
+
+                    category = list(data.keys())[0]
+
+                    for key, section in data[category].items():
+                        for att in bow:
+                            flag = 0
+                            for ngram in section:
+                                if att[0] == ngram:
+                                    flag = 1
+                                    break
+                            if flag == 1:
+                                a_file2.write("1" + ",")
+                            else:
+                                a_file2.write("0" + ",")           
+                        a_file2.write(category + "\n")
 
 def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
     n_texts = 0
@@ -229,6 +267,6 @@ def generate_testing_and_training_files(s_path, d1_path, d2_path, f_encoding):
                         a_file3.write(a_line + '\n')
 
 if __name__ == "__main__":
-    # generate_testing_and_training_files('original-files/CORPUS DG ESPORTES - final.txt', 'training/train-esporte.txt', 'testing/test-esporte.txt', 'latin-1')
-    process_text('testing/test-policia.txt', 'testing', 'Policia')
-    generate_arff_file(1, 'testing', 'latin-1')
+    # generate_testing_and_training_files('original-files/CORPUS DG ESPACO DO TRABALHADOR - final.txt', 'training/train-trabalhador.txt', 'testing/test-trabalhador.txt', 'latin-1')
+    # process_text('training/train-trabalhador.txt','testing/test-trabalhador.txt', 'Trabalhador', 'latin-1')
+    generate_arff_file(1, 'policia_esporte_problema_trabalhador-ngram1-training', 'policia_esporte_problema_trabalhador-ngram1-testing', 'latin-1', 50)
